@@ -1,0 +1,18 @@
+{
+  "name": "farm-trailer",
+  "suites": {
+    "test": {
+      "command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        "3.12",
+        "--with",
+        "lupa==2.6",
+        "python",
+        "tests/test_farm.py"
+      ]
+    }
+  }
+}

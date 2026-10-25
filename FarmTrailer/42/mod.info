@@ -1,0 +1,5 @@
+name=Farm Trailer
+id=FarmTrailer
+require=\PROJECTRVInterior42,\KI5trailers
+description=Persistent open-sky farm trailer.
+versionMin=42.21.0
