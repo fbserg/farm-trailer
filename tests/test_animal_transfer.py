@@ -84,7 +84,12 @@ class AnimalTransferTests(unittest.TestCase):
         HaloTextHelper={addBadText=function(player,text)assert(player==p);feedback=text end}
         ISTimedActionQueue={add=function()queued=true end}
         ISVehicleMenu.showRadialMenu(p)
-        menu.slices[3].command[1]()
+        local transfer
+        for _,slice in ipairs(menu.slices)do
+            if slice.text=="Bring livestock into farm" then transfer=slice.command[1] end
+        end
+        assert(transfer,"Livestock transfer menu missing")
+        transfer()
         selected()
         assert(feedback=="Place the animal you carry before moving another.")
         assert(not queued and p:getPrimaryHandItem()==carrier)

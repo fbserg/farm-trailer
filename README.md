@@ -41,6 +41,10 @@ in the vehicle radial. It pumps 20 L per action, up to 800 L. Walk away to stop.
 A full fill uses 20% battery charge. River water stays tainted. Water adds towing
 weight. Destroyed collectors stay destroyed.
 
+The vehicle radial shows the last measured water total, labelled **snapshot**.
+Below 160 L, it shows **LOW**. Farm entry gives one low-water notice after the
+collectors load. An unknown level says to enter the farm to check.
+
 ### Animals
 
 Load livestock into the trailer with the normal game UI. Choose **Bring livestock
