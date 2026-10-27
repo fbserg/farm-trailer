@@ -133,9 +133,9 @@ function F.register()
         if def ~= types[F.type] then
             for _, other in ipairs(def.rooms) do
                 for _, room in ipairs(F.rooms) do
-                    assert(other.z ~= room.z or other.x + def.roomWidth < room.x
-                        or other.x > room.x + 13 or other.y + def.roomHeight < room.y
-                        or other.y > room.y + 41, "Farm Trailer pool overlaps an RV room")
+                    assert(other.z ~= room.z or other.x + def.roomWidth < room.x - 1
+                        or other.x > room.x + 14 or other.y + def.roomHeight < room.y - 1
+                        or other.y > room.y + 42, "Farm Trailer pool overlaps an RV room")
                 end
             end
         end
@@ -156,4 +156,5 @@ function F.register()
     }
 end
 Events.OnInitWorld.Add(F.register)
+require "FarmTrailerBoundary"
 return F

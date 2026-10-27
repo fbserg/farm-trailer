@@ -3,7 +3,7 @@
 The cows wanted a garden.
 
 A Project Zomboid **Build 42.21** add-on for Project RV Interior and KI5's Trailers!.
-KI5's livestock trailer gets a persistent **12 × 40 outdoor farm**, with solid wooden
+KI5's livestock trailer gets a persistent **12 × 40 outdoor farm**, with permanent wooden
 walls, no roof and two empty 400 L water collectors. Crops, animals and corpses stay
 when you leave. Normal weather, hunger, disease and decay apply.
 
@@ -23,7 +23,9 @@ Use the current Project RV Interior release with its entry/exit hooks (October 2
 Load `map_distanciado` before `Muldraugh, KY` in the world's map list.
 Stand beside an unlocked KI5 livestock trailer and enter through its vehicle radial.
 Right-click the ground inside to leave. Each trailer receives its own plot, up to 38.
-New plots contain soil, perimeter walls and two collectors. The photos show a staged
+New plots contain soil, perimeter walls and two collectors. The original perimeter
+blocks climbing, normal attacks, fire and sledgehammers. An invisible one-tile
+border outside the walls blocks movement. The photos show a staged
 farm with crops, pens and livestock added for the demo.
 
 For a local install, copy `FarmTrailer` to `~/Zomboid/mods/`, or run
@@ -61,7 +63,8 @@ after the dependencies in `Mods`. Add `3826535986`, `3543229299`, `3330403100` a
   persistence across a full server restart. The isolated compatibility run used a
   recorded 83-mod server stack. **Live remote co-op remains untested.**
 - This reuses KI5's existing exterior model. It does not convert an interior already
-  assigned to a trailer. Existing farm plots retain their original perimeter.
+  assigned to a trailer. Existing farm walls and fences upgrade in place. Conflicting player construction
+  stays untouched, so modified boundaries can retain gaps.
   The safety update preserves old interior routing and handles farm occupants saved
   with the wrong room type by the first release. If that release assigned both an old
   room and a farm, both remain saved. Entry follows the trailer's saved type. No
@@ -73,7 +76,7 @@ after the dependencies in `Mods`. Add `3826535986`, `3543229299`, `3330403100` a
 
 ## Source and checks
 
-`FarmTrailer/42/` contains all five runtime files. Only that directory belongs in
+`FarmTrailer/42/` contains all six runtime files. Only that directory belongs in
 the installed mod. This repository contains no game or dependency files.
 
 The portable behaviour suite uses Python 3.12 and Lupa 2.6:

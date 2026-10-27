@@ -36,3 +36,19 @@ menu can point at another trailer. Native carriers persist animal identity and s
 Two native player objects exercise assignment isolation, not real network peers.
 
 Reopen after a live two-client session or a change to native timed-action networking.
+
+## Permanent original perimeter (October 26, 2026)
+
+Decision: upgrade only original farm walls/fences in place, with dedicated stable
+sprite IDs and a one-tile invisible collision border outside the farm. Block native
+climbing, normal attacks, fire and sledge actions on tagged boundary objects.
+Preserve player construction and skip conflicting squares. Missing walls remain
+missing, but clear outer tiles receive the border. Never replace vanilla sprites.
+
+Evidence: native startup clears the sprite manager after OnInitWorld. Register at
+OnLoadedTileDefinitions before saved objects resolve IDs. Native creation/restart
+checks block players, cattle and hens, fire and sledge actions. Portable checks
+preserve existing objects and skip construction conflicts.
+
+Reopen if the game changes sprite serialization or boundary collision behavior.
+Admin tools and mods that bypass normal actions remain outside this protection.

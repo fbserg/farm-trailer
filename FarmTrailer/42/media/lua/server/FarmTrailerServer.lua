@@ -7,9 +7,66 @@ local function addObject(square, sprite, name)
     return object
 end
 
+local originalWalls = {
+    ["walls_exterior_wooden_01_41"] = {name = "Farm wall", kind = "north"},
+    ["walls_exterior_wooden_01_40"] = {name = "Farm wall", kind = "west"},
+    ["fencing_01_25"] = {name = "Farm fence", kind = "north"},
+    ["fencing_01_24"] = {name = "Farm fence", kind = "west"},
+}
+
+function F.upgradeBoundary(square)
+    local room, mode = F.boundaryAt(square:getX(), square:getY(), square:getZ())
+    if not room then return end
+    local objects, changes = square:getObjects(), {}
+    local floor, protected = square:getFloor(), false
+    local dx, dy = square:getX() - room.x, square:getY() - room.y
+    for i = 0, objects:size() - 1 do
+        local object = objects:get(i)
+        if F.isBoundary(object) then
+            protected = true
+        elseif object ~= floor then
+            local sprite = object:getSprite()
+            local old = sprite and originalWalls[sprite:getName()]
+            local correctEdge = old and ((old.kind == "north" and (dy == 0 or dy == 41))
+                or (old.kind == "west" and (dx == 0 or dx == 13)))
+            if mode == "wall" and old and object:getName() == old.name and correctEdge then
+                changes[#changes + 1] = {object = object, kind = old.kind}
+            else
+                if not square:getModData().FarmTrailerBoundaryConflict then
+                    print("[FarmTrailer] Boundary upgrade skipped player/map construction at "
+                        .. square:getX() .. "," .. square:getY())
+                    square:getModData().FarmTrailerBoundaryConflict = true
+                end
+                return -- Preflight the whole square before touching an original wall.
+            end
+        end
+    end
+    if square:getRoom() then return end
+    for _, change in ipairs(changes) do
+        local object = change.object
+        object:setSpriteFromName(F.boundarySprites[change.kind].name)
+        object:getModData().FarmTrailerBoundary = true
+        object:transmitModData()
+        object:transmitUpdatedSpriteToClients()
+    end
+    if mode == "outer" and not protected then
+        local object = addObject(square, F.boundarySprites.outer.name, "Farm boundary")
+        object:getModData().FarmTrailerBoundary = true
+        object:transmitCompleteItemToClients()
+    end
+    if #changes > 0 or (mode == "outer" and not protected) then
+        square:getModData().FarmTrailerBoundaryConflict = nil
+        square:RecalcAllWithNeighbours(true)
+        square:transmitModdata()
+    end
+end
+
 function F.buildSquare(square)
     local room = F.roomAt(square:getX(), square:getY(), square:getZ())
-    if not room or square:getModData().FarmTrailerBuilt then return end
+    if not room or square:getModData().FarmTrailerBuilt then
+        F.upgradeBoundary(square)
+        return
+    end
     assert(not square:getRoom(), "Farm Trailer needs an unoccupied outdoor map band")
     assert(square:getObjects():size() <= 1, "Farm Trailer found existing construction in its reserved band")
     local dx, dy = square:getX() - room.x, square:getY() - room.y
@@ -29,6 +86,7 @@ function F.buildSquare(square)
         assert(object:getFluidContainer():getCapacity() == 400, "Unexpected native collector capacity")
     end
     square:getModData().FarmTrailerBuilt = true
+    F.upgradeBoundary(square)
     square:RecalcAllWithNeighbours(true)
     square:transmitModdata()
 end
