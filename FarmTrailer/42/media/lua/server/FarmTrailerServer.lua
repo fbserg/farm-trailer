@@ -112,6 +112,7 @@ function F.updateWater(room)
     local state = F.state(room)
     local objects = F.waterObjects(room)
     if not objects then return end
+    state.observed = true
     state.known, state.capacity = 0, 0
     for _, object in ipairs(objects) do
         local free = object:getFluidCapacity() - object:getFluidAmount()
@@ -156,6 +157,7 @@ function F.updateMass(vehicle, room)
     local data = part:getModData()
     data.FarmTrailerDryMass = data.FarmTrailerDryMass or vehicle:getInitialMass()
     data.FarmTrailerWaterMass = state.known + state.pending
+    data.FarmTrailerWaterObserved = state.observed == true
     vehicle:transmitPartModData(part)
     F.applyMass(vehicle, data)
 end
@@ -293,4 +295,39 @@ local function maintain()
     end
 end
 Events.EveryOneMinute.Add(maintain)
+-- An entry can precede collector chunk loads. A newer entry cancels the old wait.
+local waterEntries = {}
+function F.awaitWaterNotice(context)
+    local player, room = context.player, context.room
+    if not player or not room then return end
+    local record = F.playerData(player)
+    if not record then return end
+    local token, ticks = {}, 0
+    local checkWater
+    waterEntries[player] = token
+    local function finish()
+        Events.OnTick.Remove(checkWater)
+        if waterEntries[player] == token then waterEntries[player] = nil end
+    end
+    -- ceiling: 600 ticks per entry, revisit only if native chunk loading needs longer.
+    checkWater = function()
+        ticks = ticks + 1
+        if waterEntries[player] ~= token or F.playerData(player) ~= record then finish(); return end
+        if not F.waterObjects(room) then
+            if ticks >= 600 then finish() end
+            return
+        end
+        finish()
+        F.updateWater(room)
+        F.updateMass(context.vehicle, room)
+        local amount = F.state(room).known + F.state(room).pending
+        if amount >= F.capacity * 0.2 then return end
+        if isServer() then
+            sendServerCommand(player, "FarmTrailer", "waterLow", {onlineID = player:getOnlineID(), amount = amount})
+        else
+            HaloTextHelper.addBadText(player, "Farm water low: " .. math.floor(amount) .. " / " .. F.capacity .. " L")
+        end
+    end
+    Events.OnTick.Add(checkWater)
+end
 return F

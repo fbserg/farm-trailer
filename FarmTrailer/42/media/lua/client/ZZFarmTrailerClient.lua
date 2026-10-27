@@ -43,6 +43,7 @@ local function install()
             end
         end
         if not F.isFarmVehicle(vehicle) then return end
+        menu:addSlice(F.waterStatusText(vehicle), getTexture("Item_WaterBottleFull"), nil)
         if F.pumpReady(player, vehicle) then
             menu:addSlice("Fill farm tanks", getTexture("Item_WaterBottleFull"), queuePump, player, vehicle)
         end
@@ -117,3 +118,11 @@ if isClient() then
         end
     end)
 end
+
+Events.OnServerCommand.Add(function(module, command, args)
+    if module ~= "FarmTrailer" or command ~= "waterLow" then return end
+    local player = getPlayerByOnlineID(args.onlineID)
+    if player then
+        HaloTextHelper.addBadText(player, "Farm water low: " .. math.floor(args.amount) .. " / " .. F.capacity .. " L")
+    end
+end)

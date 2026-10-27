@@ -69,7 +69,10 @@ end
 
 -- This hook runs after successful parent entry but before its free utilities.
 require("RVHooks").register("postEnter", function(context)
-    if context.typeKey == F.type then return false end
+    if context.typeKey == F.type then
+        if context.side ~= "client" then F.awaitWaterNotice(context) end
+        return false
+    end
 end)
 
 function F.rvData() return ModData.getOrCreate("modPROJECTRVInterior") end
@@ -157,4 +160,13 @@ function F.register()
 end
 Events.OnInitWorld.Add(F.register)
 require "FarmTrailerBoundary"
+function F.waterStatusText(vehicle)
+    local data = vehicle:getPartById("TrailerAnimalFood"):getModData()
+    if not data.FarmTrailerWaterObserved then return "Farm water: enter farm to check" end
+    local amount = data.FarmTrailerWaterMass
+    local text = "Farm water: " .. math.floor(amount) .. " / " .. F.capacity .. " L"
+    if amount < F.capacity * 0.2 then text = text .. " (LOW)" end
+    return text .. " (snapshot)"
+end
+
 return F
