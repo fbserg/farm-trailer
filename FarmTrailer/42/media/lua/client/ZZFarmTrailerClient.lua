@@ -16,6 +16,14 @@ local function queuePump(player, vehicle)
     end
 end
 
+local function queueAnimal(player, operation, vehicle, animal)
+    if F.carryingAnimal(player) then
+        HaloTextHelper.addBadText(player, "Place the animal you carry before moving another.")
+        return
+    end
+    ISTimedActionQueue.add(ISFarmTrailerAction:new(player, operation, vehicle, animal))
+end
+
 local function install()
     local originalMenu = ISVehicleMenu.showRadialMenu
     ISVehicleMenu.showRadialMenu = function(player, ...)
@@ -47,7 +55,7 @@ local function install()
                     local animal = animals:get(i)
                     if instanceof(animal, "IsoAnimal") then
                     choices:addOption(animal:getFullName(), player, function()
-                        ISTimedActionQueue.add(ISFarmTrailerAction:new(player, "animalIn", vehicle, animal))
+                        queueAnimal(player, "animalIn", vehicle, animal)
                     end)
                     end
                 end
@@ -85,7 +93,7 @@ local function context(playerNum, menu, worldObjects)
                     local animal = moving:get(i)
                     if instanceof(animal, "IsoAnimal") and player:DistToSquared(animal) <= 9 then
                         menu:addOption("Bring " .. animal:getFullName() .. " out of farm", player, function()
-                            ISTimedActionQueue.add(ISFarmTrailerAction:new(player, "animalOut", nil, animal))
+                            queueAnimal(player, "animalOut", nil, animal)
                         end)
                     end
                 end

@@ -367,6 +367,7 @@ class FarmTests(unittest.TestCase):
         function v:getAnimals()return {contains=function()return present end}end;
         item={class="AnimalInventoryItem",md={}};function item:getModData()return self.md end;
         function p:getPrimaryHandItem()return self.item end;
+        function p:getSecondaryHandItem()return nil end;
         ISRemoveAnimalFromTrailer={new=function()return {complete=function()
             assert(not crossed);picked=(picked or 0)+1;p.item=item;present=false;return true end}end};
         function isServer()return true end;
