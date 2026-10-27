@@ -227,7 +227,7 @@ class FarmTests(unittest.TestCase):
 
     def test_client_reuses_parent_entry_and_only_skips_farm_generator(self):
         self.prepare_client()
-        self.check('''ISVehicleMenu.showRadialMenu(p);assert(#menu.slices==2);F.enterFromMenu(p,v);assert(nativeEntry);
+        self.check('''ISVehicleMenu.showRadialMenu(p);assert(#menu.slices==3);F.enterFromMenu(p,v);assert(nativeEntry);
         local hooks=require("RVHooks");assert(hooks.emit("postEnter",{typeKey=F.type})==false);assert(hooks.emit("postEnter",{typeKey="normal"})~=false)''')
 
     def test_client_does_not_add_farm_controls_to_other_vehicles(self):
@@ -239,7 +239,7 @@ class FarmTests(unittest.TestCase):
         self.prepare_client()
         self.check('''ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]);
         suppressEntry=true;function v:getAnimals()return array({{}})end;
-        ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]==nil);assert(#menu.slices==1);
+        ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]==nil);assert(#menu.slices==2);
         function v:getScript()return {getFullName=function()return "Base.Van"end}end;
         ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]==nil)''')
 

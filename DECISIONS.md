@@ -36,3 +36,21 @@ menu can point at another trailer. Native carriers persist animal identity and s
 Two native player objects exercise assignment isolation, not real network peers.
 
 Reopen after a live two-client session or a change to native timed-action networking.
+
+## Report water snapshots and wait for measured entry water (October 26, 2026)
+
+Decision: show the last observed collector amount plus pending delivery from the
+replicated livestock-trailer part. Label exterior values as snapshots. Keep unknown
+water unknown until the collectors load. Compare against nominal 800 L, with low
+strictly below 160 L. Wait at most 600 ticks per successful entry for authoritative
+collector squares, then abandon the notice if they remain unloaded. A new entry
+invalidates any previous wait for that player.
+
+Evidence: issue #1 requests 800 L defaults and a one-time entry notice. The parent
+postEnter hook runs before collector chunks necessarily load and fires on both
+network sides. Client global FarmTrailer ModData is not replicated. Existing part
+water mass already carries the authoritative known plus pending amount. Native
+HaloTextHelper.addBadText(player,text) is present in the installed Java class.
+
+Reopen if the parent provides a loaded-room hook or the engine offers fresh remote
+collector reads without loading their squares.

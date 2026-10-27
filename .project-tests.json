@@ -11,7 +11,12 @@
         "--with",
         "lupa==2.6",
         "python",
-        "tests/test_farm.py"
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-v"
       ]
     }
   }
