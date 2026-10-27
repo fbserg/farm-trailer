@@ -7,9 +7,66 @@ local function addObject(square, sprite, name)
     return object
 end
 
+local originalWalls = {
+    ["walls_exterior_wooden_01_41"] = {name = "Farm wall", kind = "north"},
+    ["walls_exterior_wooden_01_40"] = {name = "Farm wall", kind = "west"},
+    ["fencing_01_25"] = {name = "Farm fence", kind = "north"},
+    ["fencing_01_24"] = {name = "Farm fence", kind = "west"},
+}
+
+function F.upgradeBoundary(square)
+    local room, mode = F.boundaryAt(square:getX(), square:getY(), square:getZ())
+    if not room then return end
+    local objects, changes = square:getObjects(), {}
+    local floor, protected = square:getFloor(), false
+    local dx, dy = square:getX() - room.x, square:getY() - room.y
+    for i = 0, objects:size() - 1 do
+        local object = objects:get(i)
+        if F.isBoundary(object) then
+            protected = true
+        elseif object ~= floor then
+            local sprite = object:getSprite()
+            local old = sprite and originalWalls[sprite:getName()]
+            local correctEdge = old and ((old.kind == "north" and (dy == 0 or dy == 41))
+                or (old.kind == "west" and (dx == 0 or dx == 13)))
+            if mode == "wall" and old and object:getName() == old.name and correctEdge then
+                changes[#changes + 1] = {object = object, kind = old.kind}
+            else
+                if not square:getModData().FarmTrailerBoundaryConflict then
+                    print("[FarmTrailer] Boundary upgrade skipped player/map construction at "
+                        .. square:getX() .. "," .. square:getY())
+                    square:getModData().FarmTrailerBoundaryConflict = true
+                end
+                return -- Preflight the whole square before touching an original wall.
+            end
+        end
+    end
+    if square:getRoom() then return end
+    for _, change in ipairs(changes) do
+        local object = change.object
+        object:setSpriteFromName(F.boundarySprites[change.kind].name)
+        object:getModData().FarmTrailerBoundary = true
+        object:transmitModData()
+        object:transmitUpdatedSpriteToClients()
+    end
+    if mode == "outer" and not protected then
+        local object = addObject(square, F.boundarySprites.outer.name, "Farm boundary")
+        object:getModData().FarmTrailerBoundary = true
+        object:transmitCompleteItemToClients()
+    end
+    if #changes > 0 or (mode == "outer" and not protected) then
+        square:getModData().FarmTrailerBoundaryConflict = nil
+        square:RecalcAllWithNeighbours(true)
+        square:transmitModdata()
+    end
+end
+
 function F.buildSquare(square)
     local room = F.roomAt(square:getX(), square:getY(), square:getZ())
-    if not room or square:getModData().FarmTrailerBuilt then return end
+    if not room or square:getModData().FarmTrailerBuilt then
+        F.upgradeBoundary(square)
+        return
+    end
     assert(not square:getRoom(), "Farm Trailer needs an unoccupied outdoor map band")
     assert(square:getObjects():size() <= 1, "Farm Trailer found existing construction in its reserved band")
     local dx, dy = square:getX() - room.x, square:getY() - room.y
@@ -29,6 +86,7 @@ function F.buildSquare(square)
         assert(object:getFluidContainer():getCapacity() == 400, "Unexpected native collector capacity")
     end
     square:getModData().FarmTrailerBuilt = true
+    F.upgradeBoundary(square)
     square:RecalcAllWithNeighbours(true)
     square:transmitModdata()
 end
@@ -54,6 +112,7 @@ function F.updateWater(room)
     local state = F.state(room)
     local objects = F.waterObjects(room)
     if not objects then return end
+    state.observed = true
     state.known, state.capacity = 0, 0
     for _, object in ipairs(objects) do
         local free = object:getFluidCapacity() - object:getFluidAmount()
@@ -98,6 +157,7 @@ function F.updateMass(vehicle, room)
     local data = part:getModData()
     data.FarmTrailerDryMass = data.FarmTrailerDryMass or vehicle:getInitialMass()
     data.FarmTrailerWaterMass = state.known + state.pending
+    data.FarmTrailerWaterObserved = state.observed == true
     vehicle:transmitPartModData(part)
     F.applyMass(vehicle, data)
 end
@@ -235,4 +295,39 @@ local function maintain()
     end
 end
 Events.EveryOneMinute.Add(maintain)
+-- An entry can precede collector chunk loads. A newer entry cancels the old wait.
+local waterEntries = {}
+function F.awaitWaterNotice(context)
+    local player, room = context.player, context.room
+    if not player or not room then return end
+    local record = F.playerData(player)
+    if not record then return end
+    local token, ticks = {}, 0
+    local checkWater
+    waterEntries[player] = token
+    local function finish()
+        Events.OnTick.Remove(checkWater)
+        if waterEntries[player] == token then waterEntries[player] = nil end
+    end
+    -- ceiling: 600 ticks per entry, revisit only if native chunk loading needs longer.
+    checkWater = function()
+        ticks = ticks + 1
+        if waterEntries[player] ~= token or F.playerData(player) ~= record then finish(); return end
+        if not F.waterObjects(room) then
+            if ticks >= 600 then finish() end
+            return
+        end
+        finish()
+        F.updateWater(room)
+        F.updateMass(context.vehicle, room)
+        local amount = F.state(room).known + F.state(room).pending
+        if amount >= F.capacity * 0.2 then return end
+        if isServer() then
+            sendServerCommand(player, "FarmTrailer", "waterLow", {onlineID = player:getOnlineID(), amount = amount})
+        else
+            HaloTextHelper.addBadText(player, "Farm water low: " .. math.floor(amount) .. " / " .. F.capacity .. " L")
+        end
+    end
+    Events.OnTick.Add(checkWater)
+end
 return F

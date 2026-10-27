@@ -69,7 +69,10 @@ end
 
 -- This hook runs after successful parent entry but before its free utilities.
 require("RVHooks").register("postEnter", function(context)
-    if context.typeKey == F.type then return false end
+    if context.typeKey == F.type then
+        if context.side ~= "client" then F.awaitWaterNotice(context) end
+        return false
+    end
 end)
 
 function F.rvData() return ModData.getOrCreate("modPROJECTRVInterior") end
@@ -133,9 +136,9 @@ function F.register()
         if def ~= types[F.type] then
             for _, other in ipairs(def.rooms) do
                 for _, room in ipairs(F.rooms) do
-                    assert(other.z ~= room.z or other.x + def.roomWidth < room.x
-                        or other.x > room.x + 13 or other.y + def.roomHeight < room.y
-                        or other.y > room.y + 41, "Farm Trailer pool overlaps an RV room")
+                    assert(other.z ~= room.z or other.x + def.roomWidth < room.x - 1
+                        or other.x > room.x + 14 or other.y + def.roomHeight < room.y - 1
+                        or other.y > room.y + 42, "Farm Trailer pool overlaps an RV room")
                 end
             end
         end
@@ -156,4 +159,14 @@ function F.register()
     }
 end
 Events.OnInitWorld.Add(F.register)
+require "FarmTrailerBoundary"
+function F.waterStatusText(vehicle)
+    local data = vehicle:getPartById("TrailerAnimalFood"):getModData()
+    if not data.FarmTrailerWaterObserved then return "Farm water: enter farm to check" end
+    local amount = data.FarmTrailerWaterMass
+    local text = "Farm water: " .. math.floor(amount) .. " / " .. F.capacity .. " L"
+    if amount < F.capacity * 0.2 then text = text .. " (LOW)" end
+    return text .. " (snapshot)"
+end
+
 return F

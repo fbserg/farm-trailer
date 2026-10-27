@@ -4,8 +4,17 @@ require "TimedActions/Animals/ISPickupAnimal"
 local F = require "FarmTrailer"
 ISFarmTrailerAction = ISBaseTimedAction:derive("ISFarmTrailerAction")
 
+function F.carryingAnimal(player)
+    local primary = player:getPrimaryHandItem()
+    local secondary = player:getSecondaryHandItem()
+    return (primary and instanceof(primary, "AnimalInventoryItem"))
+        or (secondary and instanceof(secondary, "AnimalInventoryItem"))
+end
+
 function ISFarmTrailerAction:isValid()
     if self.operation == "pump" then return F.pumpReady(self.character, self.vehicle) end
+    -- Native pickup force-drops held animals before it equips the new carrier.
+    if F.carryingAnimal(self.character) then return false end
     if self.operation == "animalIn" then
         return self.animal and instanceof(self.animal, "IsoAnimal") and F.isFarmVehicle(self.vehicle) and not self.vehicle:isTrunkLocked()
             and self.character:getZ() == self.vehicle:getZ()

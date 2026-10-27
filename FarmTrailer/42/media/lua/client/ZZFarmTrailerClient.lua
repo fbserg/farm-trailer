@@ -16,6 +16,14 @@ local function queuePump(player, vehicle)
     end
 end
 
+local function queueAnimal(player, operation, vehicle, animal)
+    if F.carryingAnimal(player) then
+        HaloTextHelper.addBadText(player, "Place the animal you carry before moving another.")
+        return
+    end
+    ISTimedActionQueue.add(ISFarmTrailerAction:new(player, operation, vehicle, animal))
+end
+
 local function install()
     local originalMenu = ISVehicleMenu.showRadialMenu
     ISVehicleMenu.showRadialMenu = function(player, ...)
@@ -35,6 +43,7 @@ local function install()
             end
         end
         if not F.isFarmVehicle(vehicle) then return end
+        menu:addSlice(F.waterStatusText(vehicle), getTexture("Item_WaterBottleFull"), nil)
         if F.pumpReady(player, vehicle) then
             menu:addSlice("Fill farm tanks", getTexture("Item_WaterBottleFull"), queuePump, player, vehicle)
         end
@@ -47,7 +56,7 @@ local function install()
                     local animal = animals:get(i)
                     if instanceof(animal, "IsoAnimal") then
                     choices:addOption(animal:getFullName(), player, function()
-                        ISTimedActionQueue.add(ISFarmTrailerAction:new(player, "animalIn", vehicle, animal))
+                        queueAnimal(player, "animalIn", vehicle, animal)
                     end)
                     end
                 end
@@ -85,7 +94,7 @@ local function context(playerNum, menu, worldObjects)
                     local animal = moving:get(i)
                     if instanceof(animal, "IsoAnimal") and player:DistToSquared(animal) <= 9 then
                         menu:addOption("Bring " .. animal:getFullName() .. " out of farm", player, function()
-                            ISTimedActionQueue.add(ISFarmTrailerAction:new(player, "animalOut", nil, animal))
+                            queueAnimal(player, "animalOut", nil, animal)
                         end)
                     end
                 end
@@ -109,3 +118,11 @@ if isClient() then
         end
     end)
 end
+
+Events.OnServerCommand.Add(function(module, command, args)
+    if module ~= "FarmTrailer" or command ~= "waterLow" then return end
+    local player = getPlayerByOnlineID(args.onlineID)
+    if player then
+        HaloTextHelper.addBadText(player, "Farm water low: " .. math.floor(args.amount) .. " / " .. F.capacity .. " L")
+    end
+end)

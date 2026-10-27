@@ -36,3 +36,48 @@ menu can point at another trailer. Native carriers persist animal identity and s
 Two native player objects exercise assignment isolation, not real network peers.
 
 Reopen after a live two-client session or a change to native timed-action networking.
+
+## Permanent original perimeter (October 26, 2026)
+
+Decision: upgrade only original farm walls/fences in place, with dedicated stable
+sprite IDs and a one-tile invisible collision border outside the farm. Block native
+climbing, normal attacks, fire and sledge actions on tagged boundary objects.
+Preserve player construction and skip conflicting squares. Missing walls remain
+missing, but clear outer tiles receive the border. Never replace vanilla sprites.
+
+Evidence: native startup clears the sprite manager after OnInitWorld. Register at
+OnLoadedTileDefinitions before saved objects resolve IDs. Native creation/restart
+checks block players, cattle and hens, fire and sledge actions. Portable checks
+preserve existing objects and skip construction conflicts.
+
+Reopen if the game changes sprite serialization or boundary collision behavior.
+Admin tools and mods that bypass normal actions remain outside this protection.
+
+## Preserve a held livestock carrier (October 26, 2026)
+
+Decision: reject another animal transfer while either hand holds an animal carrier.
+The menu explains how to proceed. Recheck at completion before native pickup.
+
+Evidence: native pickup forceDropHeavyItems places the previous carrier at the
+departure square. The regression test reproduces this before the guard. Native
+removeAnimalFromTrailer recalculates livestock space, which uses size points,
+not kilograms. Water mass changes do not retain departed livestock occupancy.
+
+Reopen if native pickup supports multiple held animal carriers.
+## Report water snapshots and wait for measured entry water (October 26, 2026)
+
+Decision: show the last observed collector amount plus pending delivery from the
+replicated livestock-trailer part. Label exterior values as snapshots. Keep unknown
+water unknown until the collectors load. Compare against nominal 800 L, with low
+strictly below 160 L. Wait at most 600 ticks per successful entry for authoritative
+collector squares, then abandon the notice if they remain unloaded. A new entry
+invalidates any previous wait for that player.
+
+Evidence: issue #1 requests 800 L defaults and a one-time entry notice. The parent
+postEnter hook runs before collector chunks necessarily load and fires on both
+network sides. Client global FarmTrailer ModData is not replicated. Existing part
+water mass already carries the authoritative known plus pending amount. Native
+HaloTextHelper.addBadText(player,text) is present in the installed Java class.
+
+Reopen if the parent provides a loaded-room hook or the engine offers fresh remote
+collector reads without loading their squares.

@@ -155,6 +155,78 @@ class FarmTests(unittest.TestCase):
         p.x=room.x+6;p.y=room.y+3;F.rvData().Vehicles={["farm-1"]={x=100,y=200,z=0}};
         rv.GetOutFromRV(p);assert(not nativeExit);assert(p.x==100 and p.y==200)''')
 
+    def prepare_boundary(self):
+        self.check('''function boundarySquare(x,y)
+            local sq={md={FarmTrailerBuilt=true},items={}};
+            function sq:getX()return x end;function sq:getY()return y end;function sq:getZ()return 0 end;
+            function sq:getRoom()return nil end;function sq:getModData()return self.md end;
+            function sq:getObjects()return array(self.items)end;function sq:getFloor()return self.floor end;
+            function sq:AddTileObject(o)self.items[#self.items+1]=o end;
+            function sq:RecalcAllWithNeighbours()end;function sq:transmitModdata()end;
+            return sq
+        end
+        function boundaryObject(sq,name,sprite)
+            local o={md={},sprite=sprite,name=name};
+            function o:getSquare()return sq end;function o:getName()return self.name end;
+            function o:getModData()return self.md end;
+            function o:getSprite()return {getName=function()return self.sprite end}end;
+            function o:setSpriteFromName(n)self.sprite=n end;
+            function o:transmitModData()end;function o:transmitUpdatedSpriteToClients()end;function o:transmitCompleteItemToClients()end;
+            sq:AddTileObject(o);return o
+        end
+        IsoObject={new=function(sq,sprite,name)
+            local o=boundaryObject(sq,name,sprite);table.remove(sq.items);return o end};
+        sq=boundarySquare(room.x,room.y+8);sq.floor=boundaryObject(sq,"floor","soil");
+        wall=boundaryObject(sq,"Farm wall","walls_exterior_wooden_01_40");wall.md.custom="keep"''')
+
+    def test_original_boundary_upgrade_preserves_object_and_contents(self):
+        self.prepare_boundary()
+        self.check('''local original=wall;F.upgradeBoundary(sq);
+        assert(wall==original and wall.md.custom=="keep" and wall.md.FarmTrailerBoundary);
+        assert(wall.sprite==F.boundarySprites.west.name and #sq.items==2);
+        F.upgradeBoundary(sq);assert(#sq.items==2)''')
+
+    def test_legacy_fence_upgrade(self):
+        self.prepare_boundary()
+        self.check('''wall.name="Farm fence";wall.sprite="fencing_01_24";F.upgradeBoundary(sq);
+        assert(wall.sprite==F.boundarySprites.west.name and wall.md.custom=="keep")''')
+
+    def test_boundary_conflict_leaves_original_wall_and_player_object_unchanged(self):
+        self.prepare_boundary()
+        self.check('''local chair=boundaryObject(sq,"Player chair","chair");F.upgradeBoundary(sq);
+        assert(wall.sprite=="walls_exterior_wooden_01_40" and not wall.md.FarmTrailerBoundary);
+        assert(chair.sprite=="chair" and #sq.items==3 and sq.md.FarmTrailerBoundaryConflict)''')
+
+    def test_outer_border_is_idempotent_and_refuses_player_construction(self):
+        self.prepare_boundary()
+        self.check('''local outside=boundarySquare(room.x-1,room.y+8);outside.floor=boundaryObject(outside,"floor","soil");
+        F.upgradeBoundary(outside);F.upgradeBoundary(outside);assert(#outside.items==2);
+        assert(outside.items[2].md.FarmTrailerBoundary);
+        local occupied=boundarySquare(room.x-1,room.y+9);occupied.floor=boundaryObject(occupied,"floor","soil");
+        local chair=boundaryObject(occupied,"Player chair","chair");F.upgradeBoundary(occupied);
+        assert(#occupied.items==2 and not chair.md.FarmTrailerBoundary and occupied.md.FarmTrailerBoundaryConflict)''')
+
+    def test_boundary_does_not_change_interior_or_other_farms(self):
+        self.prepare_boundary()
+        self.check('''assert(not F.boundaryAt(room.x+1,room.y+1,0));assert(not F.boundaryAt(room.x-2,room.y,0));
+        assert(not F.boundaryAt(room.x,room.y,1));assert(F.boundaryAt(F.rooms[2].x-1,12500,0)==F.rooms[2]);
+        assert(F.boundaryAt(room.x-1,room.y-1,0)==room)''')
+
+    def test_pool_collision_in_outer_border_is_rejected(self):
+        self.check('''require("RVVehicleTypes").VehicleTypes.other={scripts={},rooms={{x=room.x-1,y=room.y,z=0}},roomWidth=0,roomHeight=0};
+        local ok,err=pcall(F.register);assert(not ok and string.find(err,"overlaps"))''')
+
+    def test_sledge_protection_is_scoped_and_checks_completion(self):
+        self.prepare_boundary()
+        self.check('''F.upgradeBoundary(sq);
+        ISDestroyStuffAction={isValid=function()return true end,complete=function()destroyed=true;return true end};
+        ISDestroyCursor={canDestroy=function()return true end};
+        package.loaded["TimedActions/ISDestroyStuffAction"]=true;package.loaded["BuildingObjects/ISDestroyCursor"]=true;
+        F.installBoundaryProtection();assert(not ISDestroyStuffAction.isValid({item=wall}));
+        assert(not ISDestroyStuffAction.complete({item=wall}) and not destroyed);
+        assert(not ISDestroyCursor.canDestroy({},wall));assert(ISDestroyCursor.canDestroy({},sq.floor));
+        assert(ISDestroyStuffAction.complete({item=sq.floor}) and destroyed)''')
+
     def test_pending_delivery_preserves_existing_water(self):
         self.check('a=makeBarrel(100);b=makeBarrel(200);installBarrels(a,b); F.state(room).pending=50;F.updateWater(room);assert(a.amount==150 and b.amount==200);assert(F.state(room).known==350 and F.state(room).pending==0);assert(a.kind=="TaintedWater")')
 
@@ -227,7 +299,7 @@ class FarmTests(unittest.TestCase):
 
     def test_client_reuses_parent_entry_and_only_skips_farm_generator(self):
         self.prepare_client()
-        self.check('''ISVehicleMenu.showRadialMenu(p);assert(#menu.slices==2);F.enterFromMenu(p,v);assert(nativeEntry);
+        self.check('''ISVehicleMenu.showRadialMenu(p);assert(#menu.slices==3);F.enterFromMenu(p,v);assert(nativeEntry);
         local hooks=require("RVHooks");assert(hooks.emit("postEnter",{typeKey=F.type})==false);assert(hooks.emit("postEnter",{typeKey="normal"})~=false)''')
 
     def test_client_does_not_add_farm_controls_to_other_vehicles(self):
@@ -239,7 +311,7 @@ class FarmTests(unittest.TestCase):
         self.prepare_client()
         self.check('''ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]);
         suppressEntry=true;function v:getAnimals()return array({{}})end;
-        ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]==nil);assert(#menu.slices==1);
+        ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]==nil);assert(#menu.slices==2);
         function v:getScript()return {getFullName=function()return "Base.Van"end}end;
         ISVehicleMenu.showRadialMenu(p);assert(F.entryMenus[0]==nil)''')
 
@@ -295,6 +367,7 @@ class FarmTests(unittest.TestCase):
         function v:getAnimals()return {contains=function()return present end}end;
         item={class="AnimalInventoryItem",md={}};function item:getModData()return self.md end;
         function p:getPrimaryHandItem()return self.item end;
+        function p:getSecondaryHandItem()return nil end;
         ISRemoveAnimalFromTrailer={new=function()return {complete=function()
             assert(not crossed);picked=(picked or 0)+1;p.item=item;present=false;return true end}end};
         function isServer()return true end;
