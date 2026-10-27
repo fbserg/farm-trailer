@@ -19,6 +19,7 @@ Enable Farm Trailer and all three dependencies:
 - [Trailers!](https://steamcommunity.com/sharedfiles/filedetails/?id=3330403100)
 - [that DAMN Library](https://steamcommunity.com/sharedfiles/filedetails/?id=3171167894)
 
+Use the current Project RV Interior release with its entry/exit hooks (October 26, 2026 or later).
 Load `map_distanciado` before `Muldraugh, KY` in the world's map list.
 Stand beside an unlocked KI5 livestock trailer and enter through its vehicle radial.
 Right-click the ground inside to leave. Each trailer receives its own plot, up to 38.
@@ -45,6 +46,11 @@ into farm** in the vehicle radial, then select an animal. To take one out, stand
 beside it inside and right-click for **Bring [animal] out of farm**. Use normal pens,
 livestock zones, feed and water.
 
+The server completes pickup before it requests the crossing. If a crossing fails,
+the native animal carrier stays with the player. Enter the intended farm or use
+normal native placement. Carriers from the first release without a destination ID
+need manual native placement. The mod does not discard them.
+
 ### Multiplayer and limits
 
 The server and every player need this item and its dependencies. Put `FarmTrailer`
@@ -56,6 +62,12 @@ after the dependencies in `Mods`. Add `3826535986`, `3543229299`, `3330403100` a
   recorded 83-mod server stack. **Live remote co-op remains untested.**
 - This reuses KI5's existing exterior model. It does not convert an interior already
   assigned to a trailer. Existing farm plots retain their original perimeter.
+  The safety update preserves old interior routing and handles farm occupants saved
+  with the wrong room type by the first release. If that release assigned both an old
+  room and a farm, both remain saved. Entry follows the trailer's saved type. No
+  automatic migration or deletion resolves duplicate assignments.
+- Exit clears live zombies only in the five-tile band outside the farm walls.
+  Animals and corpses remain untouched, inside and outside.
 - Do not combine add-ons that replace this trailer's interior registration or use
   its map band at y=12500. There are 38 plots. Back up your save.
 
@@ -72,7 +84,7 @@ uv run --no-project --python 3.12 --with lupa==2.6 python tests/test_farm.py
 
 The shared executor can run the same suite with `project-test --suite test`.
 Native game tests and the original release evidence remain in the
-[development harness](https://github.com/fbserg/etc/tree/061f946/mods/farm-trailer).
+[development harness](https://github.com/fbserg/etc/tree/main/mods/farm-trailer).
 They need a licensed local game and installed dependencies. Portable tests do not
 replace the native game checks.
 

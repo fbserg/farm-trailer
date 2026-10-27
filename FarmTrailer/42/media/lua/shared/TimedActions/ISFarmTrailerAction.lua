@@ -7,11 +7,15 @@ ISFarmTrailerAction = ISBaseTimedAction:derive("ISFarmTrailerAction")
 function ISFarmTrailerAction:isValid()
     if self.operation == "pump" then return F.pumpReady(self.character, self.vehicle) end
     if self.operation == "animalIn" then
-        return F.isVehicle(self.vehicle) and self.character:DistToSquared(self.vehicle) <= 25
+        return self.animal and instanceof(self.animal, "IsoAnimal") and F.isFarmVehicle(self.vehicle) and not self.vehicle:isTrunkLocked()
+            and self.character:getZ() == self.vehicle:getZ()
+            and self.character:DistToSquared(self.vehicle) <= 25
             and math.abs(self.vehicle:getCurrentSpeedKmHour()) <= 0.1
     end
     local room = F.roomAt(self.character:getX(), self.character:getY(), self.character:getZ())
-    return room ~= nil and self.animal and self.character:DistToSquared(self.animal) <= 9
+    return room ~= nil and self.animal and self.animal:getSquare()
+        and F.roomAt(self.animal:getX(), self.animal:getY(), self.animal:getZ()) == room
+        and self.character:DistToSquared(self.animal) <= 9
 end
 
 function ISFarmTrailerAction:getDuration()
@@ -20,6 +24,7 @@ function ISFarmTrailerAction:getDuration()
 end
 
 function ISFarmTrailerAction:complete()
+    if not self:isValid() then return false end
     if self.operation == "pump" then return F.pump(self.character, self.vehicle) > 0 end
     if self.operation == "animalIn" then
         if not self.vehicle:getAnimals():contains(self.animal) then return false end
@@ -33,15 +38,17 @@ function ISFarmTrailerAction:complete()
     local item = self.character:getPrimaryHandItem()
     assert(item and instanceof(item, "AnimalInventoryItem"), "Native livestock handoff failed")
     item:getModData().FarmTrailerTransfer = self.operation == "animalIn" and "farm" or "outside"
+    if self.operation == "animalIn" then
+        -- Complete pickup before entry on the same authority.
+        if isServer() then GetInToRV(self.character, self.vehicle)
+        else F.enterFromMenu(self.character, self.vehicle) end
+        item:getModData().FarmTrailerTransferVehicle = tostring(self.vehicle:getModData().projectRV_uniqueId)
+    else
+        F.exit(self.character)
+    end
     sendItemStats(item)
     F.awaitCargo(self.character)
     return true
-end
-
-function ISFarmTrailerAction:perform()
-    ISBaseTimedAction.perform(self)
-    if self.operation == "animalIn" then F.enterFromMenu(self.character) end
-    if self.operation == "animalOut" then F.requestExit(self.character) end
 end
 
 function ISFarmTrailerAction:new(character, operation, vehicle, animal)

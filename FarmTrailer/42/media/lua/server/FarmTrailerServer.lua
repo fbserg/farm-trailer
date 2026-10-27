@@ -103,7 +103,7 @@ function F.updateMass(vehicle, room)
 end
 
 function F.track(vehicle)
-    if not F.isVehicle(vehicle) then return end
+    if not F.isFarmVehicle(vehicle) then return end
     local id = vehicle:getModData().projectRV_uniqueId
     local room = F.vehicleRoom(vehicle)
     if not id or not room then return end
@@ -113,9 +113,29 @@ function F.track(vehicle)
     F.updateMass(vehicle, room)
 end
 
+function F.cleanOutsideZombies(room)
+    for x = room.x - 5, room.x + 18 do
+        for y = room.y - 5, room.y + 46 do
+            if not F.contains(room, x, y, room.z) then
+                local square = getCell():getGridSquare(x, y, room.z)
+                local moving = square and square:getMovingObjects()
+                if moving then
+                    for i = moving:size() - 1, 0, -1 do
+                        local object = moving:get(i)
+                        if instanceof(object, "IsoZombie") then
+                            object:removeFromSquare()
+                            object:removeFromWorld()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 function F.exit(player)
     local record = F.playerData(player)
-    if not record or record.RoomType ~= F.type then return false end
+    if not F.isFarmRecord(record) then return false end
     local room = record.ActualRoom
     if not room or player:getZ() ~= room.z or player:getX() < room.x - 10
         or player:getX() >= room.x + 24 or player:getY() < room.y - 10
@@ -127,6 +147,7 @@ function F.exit(player)
     end
     local position = assert(F.rvData().Vehicles[record.VehicleId], "Missing farm trailer return position")
     F.updateWater(room)
+    F.cleanOutsideZombies(room)
     -- No corpse, animal, crop, or furniture cleanup on this exit path.
     F.rvData().Players[player:getModData().projectRV_playerId] = nil
     if isServer() then
@@ -134,6 +155,8 @@ function F.exit(player)
             x = position.x, y = position.y, z = position.z, seat = -1,
         })
     else
+        player:setSitOnGround(false)
+        player:setSittingOnFurniture(false)
         player:setX(position.x); player:setLastX(position.x)
         player:setY(position.y); player:setLastY(position.y)
         player:setZ(position.z); player:setLastZ(position.z)
@@ -143,19 +166,15 @@ end
 
 function F.installServerHooks()
     if not isMultiplayer() then return end
+    local originalEntry = GetInToRV
+    GetInToRV = function(player, vehicle)
+        return F.withVehicleType(vehicle, originalEntry, player, vehicle)
+    end
     local originalExit = RVServer.GetOutFromRV
     RVServer.GetOutFromRV = function(player)
         local record = F.playerData(player)
-        if record and record.RoomType == F.type then F.exit(player); return end
+        if F.isFarmRecord(record) then F.exit(player); return end
         return originalExit(player)
-    end
-    local originalGenerator = UpdateGen
-    UpdateGen = function(data, ...)
-        if data.vType ~= F.type then return originalGenerator(data, ...) end
-    end
-    local originalFill = FillRainCollectorsInRoom
-    FillRainCollectorsInRoom = function(data)
-        if data.vType ~= F.type then return originalFill(data) end
     end
 end
 Events.OnInitWorld.Add(F.installServerHooks)
@@ -170,7 +189,15 @@ function F.releaseCargo(player)
     if not square then return end
     local room = F.roomAt(square:getX(), square:getY(), square:getZ())
     if (target == "farm") ~= (room ~= nil) then return end
-    if room and not square:getModData().FarmTrailerBuilt then return end
+    if room then
+        local record = F.playerData(player)
+        local expected = item:getModData().FarmTrailerTransferVehicle
+        if not expected or not F.isFarmRecord(record) or tostring(record.VehicleId) ~= expected
+            or not record.ActualRoom or F.key(record.ActualRoom) ~= F.key(room) then return end
+        if not square:getModData().FarmTrailerBuilt then return end
+    elseif F.isFarmRecord(F.playerData(player)) then
+        return -- A failed exit must not release an animal just beyond the farm wall.
+    end
     -- This native drop path restores the animal state and identity, and handles networking.
     assert(square:AddWorldInventoryItem(item, 0.5, 0.5, 0, true), "Native animal release failed")
     player:getInventory():Remove(item)

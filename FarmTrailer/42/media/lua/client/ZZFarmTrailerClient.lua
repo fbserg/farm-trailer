@@ -2,13 +2,12 @@ local F = require "FarmTrailer"
 require "TimedActions/ISFarmTrailerAction"
 F.entryMenus = {}
 
-function F.enterFromMenu(player)
-    local command = assert(F.entryMenus[player:getPlayerNum()], "Open the trailer radial menu before transfer")
-    command[1](command[2], command[3], command[4], command[5], command[6], command[7])
-end
-
-function F.requestExit(player)
-    if isClient() then sendClientCommand(player, "RVServer", "exitRV", {}) else F.exit(player) end
+function F.enterFromMenu(player, vehicle)
+    local entry = F.entryMenus[player:getPlayerNum()]
+    if not entry or entry.vehicle ~= vehicle
+        or ISVehicleMenu.getVehicleToInteractWith(player) ~= vehicle then return false end
+    entry.command[1]()
+    return true
 end
 
 local function queuePump(player, vehicle)
@@ -21,16 +20,21 @@ local function install()
     local originalMenu = ISVehicleMenu.showRadialMenu
     ISVehicleMenu.showRadialMenu = function(player, ...)
         F.entryMenus[player:getPlayerNum()] = nil
-        originalMenu(player, ...)
         local vehicle = ISVehicleMenu.getVehicleToInteractWith(player)
+        F.withVehicleType(vehicle, originalMenu, player, ...)
         if not F.isVehicle(vehicle) then return end
         local menu = getPlayerRadialMenu(player:getPlayerNum())
         for _, slice in ipairs(menu.slices) do
             if slice.text == getText("ContextMenu_GetInToRV") then
-                F.entryMenus[player:getPlayerNum()] = slice.command
+                local command = slice.command
+                slice.command = {function()
+                    F.withVehicleType(vehicle, command[1], command[2], command[3], command[4], command[5], command[6], command[7])
+                end}
+                F.entryMenus[player:getPlayerNum()] = {vehicle = vehicle, command = slice.command}
                 break
             end
         end
+        if not F.isFarmVehicle(vehicle) then return end
         if F.pumpReady(player, vehicle) then
             menu:addSlice("Fill farm tanks", getTexture("Item_WaterBottleFull"), queuePump, player, vehicle)
         end
@@ -41,9 +45,11 @@ local function install()
                 local choices = ISContextMenu.get(player:getPlayerNum(), getMouseX(), getMouseY())
                 for i = 0, animals:size() - 1 do
                     local animal = animals:get(i)
+                    if instanceof(animal, "IsoAnimal") then
                     choices:addOption(animal:getFullName(), player, function()
                         ISTimedActionQueue.add(ISFarmTrailerAction:new(player, "animalIn", vehicle, animal))
                     end)
+                    end
                 end
             end)
         end
@@ -53,12 +59,13 @@ local function install()
         local originalExit = rv.GetOutFromRV
         rv.GetOutFromRV = function(player)
             local record = F.playerData(player)
-            if record and record.RoomType == F.type then F.exit(player); return end
+            if not record and F.roomAt(player:getX(), player:getY(), player:getZ()) then
+                rv.recoverPlayerFromInterior(player)
+                record = F.playerData(player)
+                if not record then return end
+            end
+            if F.isFarmRecord(record) then F.exit(player); return end
             return originalExit(player)
-        end
-        local originalGenerator = UpdateGen
-        UpdateGen = function(room, vehicleType, ...)
-            if vehicleType ~= F.type then return originalGenerator(room, vehicleType, ...) end
         end
     end
 end

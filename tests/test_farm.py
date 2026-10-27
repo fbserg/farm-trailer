@@ -17,6 +17,8 @@ function isServer() return false end
 function isMultiplayer() return false end
 local data = {}
 ModData = {getOrCreate=function(k) if not data[k] then data[k]={} end return data[k] end}
+local hooks={handlers={}}
+package.preload.RVHooks=function()return {register=function(flag,fn)hooks.handlers[flag]=fn end,emit=function(flag,ctx)if hooks.handlers[flag] then return hooks.handlers[flag](ctx) end end}end
 local types = {normal={scripts={"Base.Van"},rooms={{x=22560,y=12360,z=0}},roomWidth=3,roomHeight=7}}
 package.preload.RVVehicleTypes=function() return {VehicleTypes=types} end
 local squares = {}
@@ -69,6 +71,7 @@ function makePlayer()
     local p={x=22566,y=12503,z=0,md={projectRV_playerId="p1"},distance=4,hose=true}
     function p:getModData()return self.md end
     function p:getX()return self.x end;function p:getY()return self.y end;function p:getZ()return self.z end
+    function p:setSitOnGround()end;function p:setSittingOnFurniture()end
     function p:setX(n)self.x=n end;function p:setLastX(n)end
     function p:setY(n)self.y=n end;function p:setLastY(n)end
     function p:setZ(n)self.z=n end;function p:setLastZ(n)end
@@ -107,6 +110,50 @@ class FarmTests(unittest.TestCase):
         return function()i=i+1;local k=keys[i];if k then return k,rawget(t,k)end end end});
         assert(not pcall(F.register));assert(types.normal.scripts[2]==F.script);
         assert(types[F.type]==farm)''')
+
+    def test_legacy_entry_selects_saved_type_and_restores_registry(self):
+        self.check('''local types=require("RVVehicleTypes").VehicleTypes;local v=makeVehicle();v.md.projectRV_type="normal";
+        F.rvData().AssignedRooms={["farm-1"]={x=22560,y=12360,z=0}};
+        local scripts=types.normal.scripts;local farms=types[F.type].scripts;
+        F.withVehicleType(v,function()assert(types.normal.scripts[2]==F.script);assert(#types[F.type].scripts==0)end);
+        assert(types.normal.scripts==scripts and types[F.type].scripts==farms);
+        assert(not F.isFarmVehicle(v));assert(F.rvData().AssignedRooms["farm-1"].y==12360)''')
+
+    def test_legacy_entry_error_restores_registry(self):
+        self.check('''local t=require("RVVehicleTypes").VehicleTypes;local v=makeVehicle();v.md.projectRV_type="normal";
+        local a,b=t.normal.scripts,t[F.type].scripts;
+        local ok,err=pcall(F.withVehicleType,v,function()error("parent failed")end);assert(not ok and string.find(err,"parent failed"));
+        assert(t.normal.scripts==a and t[F.type].scripts==b)''')
+
+    def test_stale_room_type_inside_farm_uses_safe_exit(self):
+        self.check('''p=makePlayer();local data=F.rvData();
+        data.Players={p1={RoomType="normal",ActualRoom=room,VehicleId="farm-1"}};
+        data.Vehicles={["farm-1"]={x=100,y=200,z=0}};
+        assert(F.isFarmRecord(data.Players.p1));assert(F.exit(p));assert(p.x==100)''')
+
+    def test_exit_removes_only_outside_zombies(self):
+        self.check('''local function object(kind)local o={class=kind};function o:removeFromSquare()self.removed=true end;
+        function o:removeFromWorld()self.worldRemoved=true end;return o end;
+        local inside=object("IsoZombie");local outside=object("IsoZombie");local cow=object("IsoAnimal");local corpse=object("IsoDeadBody");
+        local function square(list)return {getMovingObjects=function()return array(list)end,getDeadBody=function()return corpse end}end;
+        setSquare(room.x+1,room.y+1,0,square({inside}));setSquare(room.x-1,room.y+1,0,square({outside,cow}));
+        F.cleanOutsideZombies(room);assert(outside.removed and outside.worldRemoved);
+        assert(not inside.removed and not cow.removed and not corpse.removed)''')
+
+    def test_nested_farm_entry_does_not_inherit_legacy_registration(self):
+        self.check('''local t=require("RVVehicleTypes").VehicleTypes;local old=makeVehicle();old.md.projectRV_type="normal";local new=makeVehicle();
+        F.withVehicleType(old,function()
+            assert(t.normal.scripts[2]==F.script);
+            F.withVehicleType(new,function()assert(t[F.type].scripts[1]==F.script);assert(#t.normal.scripts==1)end);
+            assert(t.normal.scripts[2]==F.script)
+        end);assert(t[F.type].scripts[1]==F.script and #t.normal.scripts==1)''')
+
+    def test_sp_recovery_intercepts_before_parent_cleanup(self):
+        self.prepare_client()
+        self.check('''function rv.recoverPlayerFromInterior(player)
+            F.rvData().Players={p1={RoomType=F.type,ActualRoom=room,VehicleId="farm-1"}};return true end;
+        p.x=room.x+6;p.y=room.y+3;F.rvData().Vehicles={["farm-1"]={x=100,y=200,z=0}};
+        rv.GetOutFromRV(p);assert(not nativeExit);assert(p.x==100 and p.y==200)''')
 
     def test_pending_delivery_preserves_existing_water(self):
         self.check('a=makeBarrel(100);b=makeBarrel(200);installBarrels(a,b); F.state(room).pending=50;F.updateWater(room);assert(a.amount==150 and b.amount==200);assert(F.state(room).known==350 and F.state(room).pending==0);assert(a.kind=="TaintedWater")')
@@ -180,8 +227,8 @@ class FarmTests(unittest.TestCase):
 
     def test_client_reuses_parent_entry_and_only_skips_farm_generator(self):
         self.prepare_client()
-        self.check('''ISVehicleMenu.showRadialMenu(p);assert(#menu.slices==2);F.enterFromMenu(p);assert(nativeEntry);
-        UpdateGen(room,F.type,true);assert(not nativeGenerator);UpdateGen(room,"normal",true);assert(nativeGenerator)''')
+        self.check('''ISVehicleMenu.showRadialMenu(p);assert(#menu.slices==2);F.enterFromMenu(p,v);assert(nativeEntry);
+        local hooks=require("RVHooks");assert(hooks.emit("postEnter",{typeKey=F.type})==false);assert(hooks.emit("postEnter",{typeKey="normal"})~=false)''')
 
     def test_client_does_not_add_farm_controls_to_other_vehicles(self):
         self.prepare_client()
@@ -198,10 +245,74 @@ class FarmTests(unittest.TestCase):
 
     def test_parent_hooks_change_only_farm_type(self):
         self.check('''function isMultiplayer()return true end;calls={};RVServer={GetOutFromRV=function()calls.exit=true end};
-        UpdateGen=function()calls.gen=true end;FillRainCollectorsInRoom=function()calls.water=true end;
-        F.installServerHooks();UpdateGen({vType=F.type});FillRainCollectorsInRoom({vType=F.type});assert(not calls.gen and not calls.water);
-        UpdateGen({vType="normal"});FillRainCollectorsInRoom({vType="normal"});assert(calls.gen and calls.water);
+        GetInToRV=function()calls.enter=true end;F.installServerHooks();
+        local hooks=require("RVHooks");assert(hooks.emit("postEnter",{typeKey=F.type})==false);
+        assert(hooks.emit("postEnter",{typeKey="normal"})~=false);
         RVServer.GetOutFromRV(makePlayer());assert(calls.exit)''')
+
+    def test_legacy_menu_and_entry_use_saved_type_when_farm_pool_is_full(self):
+        self.prepare_client()
+        self.check('''v.md.projectRV_type="normal";local t=require("RVVehicleTypes").VehicleTypes;
+        local function registered()for k,d in pairs(t)do for _,script in ipairs(d.scripts)do if script==F.script then return k end end end end;
+        -- Exercise the wrapper with a parent-shaped capacity check and callback.
+        F.entryMenus={};local old=ISVehicleMenu.showRadialMenu;
+        ISVehicleMenu.showRadialMenu=function(player)
+            menu.slices={};if registered()=="normal" then menu:addSlice("ContextMenu_GetInToRV",nil,function()assert(registered()=="normal");nativeEntry=true end,player) end
+        end;
+        Events.OnGameStart.handlers[1]();ISVehicleMenu.showRadialMenu(p);
+        assert(#menu.slices==1);menu.slices[1].command[1]();assert(nativeEntry);
+        assert(t[F.type].scripts[1]==F.script and #t.normal.scripts==1)''')
+
+    def test_release_requires_matching_assignment_and_preserves_interrupted_carrier(self):
+        self.check('''p=makePlayer();local item={class="AnimalInventoryItem",md={FarmTrailerTransfer="farm",FarmTrailerTransferVehicle="farm-1"}};
+        function item:getModData()return self.md end;p.item=item;
+        function p:getPrimaryHandItem()return self.item end;
+        function p:setPrimaryHandItem(v)self.item=v end;function p:setSecondaryHandItem()end;
+        local inv={Remove=function()removed=true end};function p:getInventory()return inv end;
+        local square={getX=function()return 22566 end,getY=function()return 12503 end,getZ=function()return 0 end,
+            getModData=function()return {FarmTrailerBuilt=true}end,AddWorldInventoryItem=function()released=(released or 0)+1;return {}end};
+        function p:getSquare()return square end;
+        F.releaseCargo(p);assert(p.item==item and not released);
+        F.rvData().Players={p1={RoomType=F.type,ActualRoom=room,VehicleId="other"}};
+        F.releaseCargo(p);assert(p.item==item and not released);
+        F.rvData().Players.p1.VehicleId="farm-1";F.releaseCargo(p);
+        assert(p.item==nil and released==1 and removed);F.releaseCargo(p);assert(released==1)''')
+
+    def test_native_release_failure_keeps_carrier(self):
+        self.check('''p=makePlayer();local item={class="AnimalInventoryItem",getModData=function()return {FarmTrailerTransfer="outside"}end};
+        function p:getPrimaryHandItem()return item end;
+        function p:getSquare()return {getX=function()return 100 end,getY=function()return 100 end,getZ=function()return 0 end,AddWorldInventoryItem=function()return nil end}end;
+        local ok,err=pcall(F.releaseCargo,p);assert(not ok and string.find(err,"Native animal release failed"));assert(p:getPrimaryHandItem()==item)''')
+
+    def test_animal_completion_rechecks_lock_and_crosses_only_after_pickup(self):
+        self.check('''ISBaseTimedAction={derive=function(self)return setmetatable({},{__index=self})end};
+        package.loaded["TimedActions/ISBaseTimedAction"]=true;
+        package.loaded["TimedActions/Animals/ISRemoveAnimalFromTrailer"]=true;
+        package.loaded["TimedActions/Animals/ISPickupAnimal"]=true;
+        p=makePlayer();p.x=100;p.y=100;v=makeVehicle();v.locked=true;
+        function v:isTrunkLocked()return self.locked end;
+        animal={class="IsoAnimal"};local present=true;
+        function v:getAnimals()return {contains=function()return present end}end;
+        item={class="AnimalInventoryItem",md={}};function item:getModData()return self.md end;
+        function p:getPrimaryHandItem()return self.item end;
+        ISRemoveAnimalFromTrailer={new=function()return {complete=function()
+            assert(not crossed);picked=(picked or 0)+1;p.item=item;present=false;return true end}end};
+        function isServer()return true end;
+        function GetInToRV(player,vehicle)assert(picked==1);crossed=true end;
+        function sendItemStats()end''')
+        self.lua.execute((ROOT / "shared/TimedActions/ISFarmTrailerAction.lua").read_text())
+        self.check('''local a=setmetatable({character=p,vehicle=v,animal=animal,operation="animalIn"},{__index=ISFarmTrailerAction});
+        assert(not a:complete() and not picked and not crossed);
+        v.locked=false;p.distance=26;assert(not a:complete() and not picked);
+        p.distance=4;assert(a:complete() and picked==1 and crossed);
+        assert(item.md.FarmTrailerTransferVehicle=="farm-1");
+        assert(not a:complete() and picked==1)''')
+
+    def test_changed_radial_does_not_enter_wrong_trailer(self):
+        self.prepare_client()
+        self.check('''ISVehicleMenu.showRadialMenu(p);local other=makeVehicle();
+        assert(not F.enterFromMenu(p,other));assert(not nativeEntry)''')
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

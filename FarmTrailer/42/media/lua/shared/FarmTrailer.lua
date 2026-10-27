@@ -29,6 +29,49 @@ function F.isVehicle(vehicle)
     return vehicle and vehicle:getScript():getFullName() == F.script
 end
 
+function F.isFarmVehicle(vehicle)
+    if not F.isVehicle(vehicle) then return false end
+    local kind = vehicle:getModData().projectRV_type
+    return kind == nil or kind == F.type
+end
+
+function F.isFarmRecord(record)
+    if not record then return false end
+    if record.RoomType == F.type then return true end
+    -- The first release could save a farm occupant with the trailer's old type.
+    local room = record.ActualRoom
+    local farm = room and F.roomAt(room.x, room.y, room.z)
+    return farm ~= nil and farm.x == room.x and farm.y == room.y
+end
+
+function F.withVehicleType(vehicle, callback, ...)
+    if not F.isVehicle(vehicle) then return callback(...) end
+    local kind = vehicle:getModData().projectRV_type or F.type
+    local types = require("RVVehicleTypes").VehicleTypes
+    local saved = assert(types[kind], "Saved trailer interior type is unavailable")
+    -- The parent resolves scripts before persisted types. Route this synchronous
+    -- call to the saved type, without migrating either assignment or its contents.
+    local originals = {}
+    for _, def in pairs(types) do
+        originals[def] = def.scripts
+        local scripts = {}
+        for _, script in ipairs(def.scripts) do
+            if script ~= F.script then scripts[#scripts + 1] = script end
+        end
+        if def == saved then scripts[#scripts + 1] = F.script end
+        def.scripts = scripts
+    end
+    local ok, result = pcall(callback, ...)
+    for def, scripts in pairs(originals) do def.scripts = scripts end
+    if not ok then error(result) end
+    return result
+end
+
+-- This hook runs after successful parent entry but before its free utilities.
+require("RVHooks").register("postEnter", function(context)
+    if context.typeKey == F.type then return false end
+end)
+
 function F.rvData() return ModData.getOrCreate("modPROJECTRVInterior") end
 
 function F.playerData(player)
@@ -69,7 +112,7 @@ function F.power(vehicle)
 end
 
 function F.pumpReady(player, vehicle)
-    if not F.isVehicle(vehicle) or math.abs(vehicle:getCurrentSpeedKmHour()) > 0.1 then return false end
+    if not F.isFarmVehicle(vehicle) or math.abs(vehicle:getCurrentSpeedKmHour()) > 0.1 then return false end
     if player:getZ() ~= vehicle:getZ() or player:DistToSquared(vehicle) > 25 then return false end
     if not player:getInventory():containsTypeRecurse("RubberHose") then return false end
     if not F.findWater(vehicle) then return false end
