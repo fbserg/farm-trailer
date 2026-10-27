@@ -52,3 +52,15 @@ preserve existing objects and skip construction conflicts.
 
 Reopen if the game changes sprite serialization or boundary collision behavior.
 Admin tools and mods that bypass normal actions remain outside this protection.
+
+## Preserve a held livestock carrier (October 26, 2026)
+
+Decision: reject another animal transfer while either hand holds an animal carrier.
+The menu explains how to proceed. Recheck at completion before native pickup.
+
+Evidence: native pickup forceDropHeavyItems places the previous carrier at the
+departure square. The regression test reproduces this before the guard. Native
+removeAnimalFromTrailer recalculates livestock space, which uses size points,
+not kilograms. Water mass changes do not retain departed livestock occupancy.
+
+Reopen if native pickup supports multiple held animal carriers.

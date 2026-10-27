@@ -46,7 +46,13 @@ weight. Destroyed collectors stay destroyed.
 Load livestock into the trailer with the normal game UI. Choose **Bring livestock
 into farm** in the vehicle radial, then select an animal. To take one out, stand
 beside it inside and right-click for **Bring [animal] out of farm**. Use normal pens,
-livestock zones, feed and water.
+livestock zones, feed and water. This returns the animal to the ground beside the
+exterior trailer. To unload an animal that is still in the exterior trailer, use
+the normal livestock panel and choose **Remove Animal**.
+
+The farm has no mod-imposed animal count limit. The exterior trailer holds 500
+animal-size points, not 500 kg. Animals consume different amounts of that space.
+Place an animal you already carry before you transfer another.
 
 The server completes pickup before it requests the crossing. If a crossing fails,
 the native animal carrier stays with the player. Enter the intended farm or use
