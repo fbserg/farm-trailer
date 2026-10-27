@@ -23,6 +23,9 @@ Use the current Project RV Interior release with its entry/exit hooks (October 2
 Load `map_distanciado` before `Muldraugh, KY` in the world's map list.
 Stand beside an unlocked KI5 livestock trailer and enter through its vehicle radial.
 Right-click the ground inside to leave. Each trailer receives its own plot, up to 38.
+Only KI5's livestock trailer (`Base.TrailerKI5livestock`) uses this farm.
+If the entry option is missing, confirm the server and every client enabled
+`FarmTrailer` and all dependencies, then restart after an update.
 New plots contain soil, perimeter walls and two collectors. The original perimeter
 blocks climbing, normal attacks, fire and sledgehammers. An invisible one-tile
 border outside the walls blocks movement. The photos show a staged
@@ -47,12 +50,27 @@ collectors load. An unknown level says to enter the farm to check.
 
 ### Animals
 
-Load livestock into the trailer with the normal game UI. Choose **Bring livestock
-into farm** in the vehicle radial, then select an animal. To take one out, stand
-beside it inside and right-click for **Bring [animal] out of farm**. Use normal pens,
-livestock zones, feed and water. This returns the animal to the ground beside the
-exterior trailer. To unload an animal that is still in the exterior trailer, use
-the normal livestock panel and choose **Remove Animal**.
+The normal livestock compartment and the walk-in farm are separate. Loading an
+animal into the trailer does not put it in the farm. Cows and chickens use the
+same transfer controls.
+
+**Into the farm:**
+
+1. Load the animal into the exterior trailer with the normal livestock controls.
+2. Open the vehicle radial and choose **Bring livestock into farm**.
+3. Select the animal. You and that animal enter the farm.
+4. Repeat for each animal. Set up normal livestock zones, pens, feed and water.
+
+**Out of the farm:**
+
+1. Stand close to the animal inside the farm.
+2. Right-click nearby and choose **Bring [animal] out of farm**.
+3. You and the animal return outside. The animal appears on the ground beside the
+   trailer. It is not automatically loaded into the normal livestock compartment.
+
+**Unload the normal compartment:** open the trailer's livestock panel, right-click
+an animal's portrait and choose **Remove Animal**. It appears on the ground outside.
+This does not move it into the farm.
 
 The farm has no mod-imposed animal count limit. The exterior trailer holds 500
 animal-size points, not 500 kg. Animals consume different amounts of that space.
@@ -71,7 +89,8 @@ after the dependencies in `Mods`. Add `3826535986`, `3543229299`, `3330403100` a
 
 - Tested on 42.21.0 with native crop growth, shoreline refills, cattle transfers and
   persistence across a full server restart. The isolated compatibility run used a
-  recorded 83-mod server stack. **Live remote co-op remains untested.**
+  recorded 83-mod server stack. **The author reports it working in live multiplayer.**
+  That report does not certify every server setup.
 - This reuses KI5's existing exterior model. It does not convert an interior already
   assigned to a trailer. Existing farm walls and fences upgrade in place. Conflicting player construction
   stays untouched, so modified boundaries can retain gaps.
