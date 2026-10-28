@@ -2,6 +2,8 @@
 
 The cows wanted a garden.
 
+*No human has ever opened this folder. Good luck!*
+
 A Project Zomboid **Build 42.21** add-on for Project RV Interior and KI5's Trailers!.
 KI5's livestock trailer gets a persistent **12 × 40 outdoor farm**, with permanent wooden
 walls, no roof and two empty 400 L water collectors. Crops, animals and corpses stay
